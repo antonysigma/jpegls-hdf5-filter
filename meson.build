@@ -34,3 +34,49 @@ h5jpegls_lib = library('h5jpegls',
         threads_dep,
     ],
 )
+
+h5repack_exe = find_program('h5repack')
+test_data = files('test-vector/bloated.hdf5')
+
+compressed_data = custom_target('compressed.hdf5',
+    input: test_data,
+    output: 'compressed.hdf5',
+    command: [
+        'HDF5_PLUGIN_PATH=' + meson.current_build_dir(),
+        h5repack_exe,
+        '-f', 'ones:UD=32012,3,0,0,0',
+        '@INPUT@',
+        '@OUTPUT@',
+    ],
+    build_by_default: false,
+)
+
+restored_data = custom_target('restored.hdf5',
+    input: compressed_data,
+    output: 'restored.hdf5',
+    command: [
+        'HDF5_PLUGIN_PATH=' + meson.current_build_dir(),
+        h5repack_exe,
+        '-f', 'ones:NONE',
+        '@INPUT@',
+        '@OUTPUT@',
+    ],
+    build_by_default: false,
+)
+
+h5ls_exe = find_program('h5ls')
+test('JPEG-LS compression w/ h5repack',
+    h5ls_exe,
+    args: [
+        '-v',
+        compressed_data,
+    ],
+)
+
+test('JPEG-LS decoding w/ h5repack',
+    h5ls_exe,
+    args: [
+        '-v',
+        restored_data,
+    ],
+)
