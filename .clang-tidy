@@ -1,10 +1,10 @@
 ---
 Checks:          'bugprone-*,clang-diagnostic-*,clang-analyzer-*,modernize-*,google-*,clang-analyzer-*,performance-*,readability-identifier-naming'
 WarningsAsErrors: ''
-#HeaderFilterRegex: '.*'
+HeaderFilterRegex: '.*/subprojects/.*'
 AnalyzeTemporaryDtors: false
 FormatStyle:     none
-CheckOptions:    
+CheckOptions:
   - key:             google-build-namespaces.HeaderFileExtensions
     value:           ',h,hh,hpp,hxx'
   - key:             google-global-names-in-headers.HeaderFileExtensions
