@@ -10,7 +10,7 @@
 #include <iostream>
 #include <vector>
 
-#include "charls.h"
+#include "charls/charls.h"
 
 #include "threadpool.h"
 ThreadPool* filter_pool = nullptr;

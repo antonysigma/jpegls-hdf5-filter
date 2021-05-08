@@ -4,23 +4,42 @@ The JPEG-LS HDF5 filter allows the multi-threaded compression of HDF5 datasets u
 
 Dependencies
 ------------
-The filter depends on the CharLS implementation of JPEG-LS which can be obtained from https://github.com/team-charls/charls
+
+On Ubuntu 18.04 or above, install the following packages:
+```bash
+sudo apt install build-essential ninja meson hdf5-tools libhdf5-dev
+```
+
+The filter depends on the CharLS implementation of JPEG-LS,
+https://github.com/team-charls/charls
+It is automatically downloaded by the Meson build system during the configuration process.
 
 Building
 --------
-1. First build the CharLS library:
+1. First, configure the build system:
 
-        git clone https://github.com/team-charls/charls.git
-        cd charls
-        mkdir build && cd build
-        cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release ..
-        make
+    ```bash
+    meson --buildtype=release -Db_lto=true build/release
+    ```
 
-2. Build the filter:
+1. Build the hdf5 filter plugin:
 
-        cd ../..
-        make
+    ```bash
+    ninja -C build/release
+    ```
 
-Installation
-------------
-Copy or symlink the filter to `/usr/local/hdf5/lib/plugin`. Note that since the filter is linked to libCharLS using its absolute path at compile time, libCharLS needs to be available at that location.
+1. (Optional) Run tests:
+
+    ```bash
+    ninja -C build/release test
+    ```
+
+(TBD) Installation
+-------------------
+
+Execute the following to install the plugin:
+
+```bash
+ninja -C build/release install
+```
+when prompted, enter admin password to continue.
