@@ -41,8 +41,10 @@ test_data = files('test-vector/bloated.hdf5')
 compressed_data = custom_target('compressed.hdf5',
     input: test_data,
     output: 'compressed.hdf5',
+    env: {
+      'HDF5_PLUGIN_PATH': meson.current_build_dir(),
+    },
     command: [
-        'HDF5_PLUGIN_PATH=' + meson.current_build_dir(),
         h5repack_exe,
         '-f', 'ones:UD=32012,3,0,0,0',
         '@INPUT@',
@@ -54,8 +56,10 @@ compressed_data = custom_target('compressed.hdf5',
 restored_data = custom_target('restored.hdf5',
     input: compressed_data,
     output: 'restored.hdf5',
+    env: {
+      'HDF5_PLUGIN_PATH': meson.current_build_dir(),
+    },
     command: [
-        'HDF5_PLUGIN_PATH=' + meson.current_build_dir(),
         h5repack_exe,
         '-f', 'ones:NONE',
         '@INPUT@',
