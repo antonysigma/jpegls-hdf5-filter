@@ -2,6 +2,8 @@ JPEG-LS HDF5 Filter
 ===================
 The JPEG-LS HDF5 filter allows the multi-threaded compression of HDF5 datasets using the JPEG-LS codec.
 
+[![CircleCI](https://circleci.com/gh/antonysigma/jpegls-hdf-filter/tree/master.svg?style=svg)](https://circleci.com/gh/antonysigma/jpegls-hdf-filter/tree/master)
+
 Dependencies
 ------------
 
