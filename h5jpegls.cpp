@@ -68,9 +68,8 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
         auto in_buf = static_cast<unsigned char*>(realloc(*buf, nblocks * length * typesize * 2));
         *buf = in_buf;
 
-        std::vector<uint32_t> block_size(subchunks);
-        // Extract header
-        std::copy_n(reinterpret_cast<uint32_t*>(in_buf), block_size.size(), block_size.begin());
+        // Parse header
+        const tcb::span<uint32_t> block_size{reinterpret_cast<uint32_t*>(in_buf), subchunks};
 
         std::vector<uint32_t> offset(subchunks);
         offset[0] = 0;
