@@ -80,23 +80,17 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
 
         vector<vector<unsigned char>> tbuf(subchunks);
 
-        // Make a copy of the compressed buffer. Required because we
-        // now realloc in_buf.
-        vector<std::future<void>> futures;
+// Make a copy of the compressed buffer. Required because we
+// now realloc in_buf.
+#pragma omp parallel for schedule(guided)
         for (size_t block = 0; block < subchunks; block++) {
-            futures.emplace_back(filter_pool->enqueue([&, block] {
-                const auto in = in_buf_span.subspan(offset[block], block_size[block]);
-                auto& out = tbuf[block];
+            const auto in = in_buf_span.subspan(offset[block], block_size[block]);
+            auto& out = tbuf[block];
 
-                out.insert(out.begin(), in.begin(), in.end());
-            }));
-        }
-        // must wait for copies to complete, otherwise having
-        // threads > subchunks could lead to a decompressor overwriting in_buf
-        for (auto& future : futures) {
-            future.wait();
+            out.insert(out.begin(), in.begin(), in.end());
         }
 
+        vector<std::future<void>> futures;
         for (size_t block = 0; block < subchunks; block++) {
             futures.emplace_back(filter_pool->enqueue([&, block] {
                 size_t own_blocks = (block < remainder ? 1 : 0) + lblocks;
