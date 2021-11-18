@@ -13,6 +13,9 @@ charls_proj = subproject('charls',
 charls_lib = charls_proj.get_variable('charls_lib')
 charls_inc = charls_proj.get_variable('charls_inc')
 
+span_proj = subproject('tcb-span')
+span_dep = span_proj.get_variable('span_dep')
+
 hdf5_dep = dependency('hdf5-serial')
 threads_dep = dependency('threads')
 openmp_dep = dependency('openmp')
@@ -34,6 +37,7 @@ h5jpegls_lib = library('h5jpegls',
         hdf5_dep,
         threads_dep,
         openmp_dep,
+        span_dep,
     ],
 )
 

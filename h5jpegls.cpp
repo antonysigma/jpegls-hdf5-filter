@@ -16,6 +16,8 @@
 #include <H5Zpublic.h>
 #include <hdf5.h>
 
+#include "span.hpp"
+
 #include "charls/charls.h"
 #include "threadpool.h"
 ThreadPool* filter_pool = nullptr;
@@ -74,6 +76,8 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
         offset[0] = 0;
         std::partial_sum(block_size.begin(), block_size.end() - 1, offset.begin() + 1);
 
+        const tcb::span<unsigned char> in_buf_span{in_buf, offset.back() + block_size.back()};
+
         vector<vector<unsigned char>> tbuf(subchunks);
 
         // Make a copy of the compressed buffer. Required because we
@@ -81,9 +85,10 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
         vector<std::future<void>> futures;
         for (size_t block = 0; block < subchunks; block++) {
             futures.emplace_back(filter_pool->enqueue([&, block] {
-                tbuf[block].reserve(block_size[block]);
-                std::copy_n(in_buf + header_size + offset[block], block_size[block],
-                            tbuf[block].begin());
+                const auto in = in_buf_span.subspan(offset[block], block_size[block]);
+                auto& out = tbuf[block];
+
+                out.insert(out.begin(), in.begin(), in.end());
             }));
         }
         // must wait for copies to complete, otherwise having
