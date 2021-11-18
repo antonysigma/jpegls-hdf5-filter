@@ -1,4 +1,5 @@
 #include <malloc.h>
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdlib>
@@ -61,32 +62,28 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
     if (flags & H5Z_FLAG_REVERSE) {
         char err_msg[256];
 
-        filter_pool->lock_buffers();
         /* Input */
         auto in_buf = static_cast<unsigned char*>(realloc(*buf, nblocks * length * typesize * 2));
         *buf = in_buf;
 
-        uint32_t block_size[subchunks];
-        uint32_t offset[subchunks];
+        std::vector<uint32_t> block_size(subchunks);
         // Extract header
-        memcpy(block_size, in_buf, subchunks * sizeof(uint32_t));
+        std::copy_n(reinterpret_cast<uint32_t*>(in_buf), block_size.size(), block_size.begin());
 
+        std::vector<uint32_t> offset(subchunks);
         offset[0] = 0;
-        uint32_t coffset = 0;
-        for (size_t block = 1; block < subchunks; block++) {
-            coffset += block_size[block - 1];
-            offset[block] = coffset;
-        }
+        std::partial_sum(block_size.begin(), block_size.end() - 1, offset.begin() + 1);
 
-        unsigned char* tbuf[subchunks];
-        vector<std::future<void>> futures;
+        vector<vector<unsigned char>> tbuf(subchunks);
+
         // Make a copy of the compressed buffer. Required because we
         // now realloc in_buf.
+        vector<std::future<void>> futures;
         for (size_t block = 0; block < subchunks; block++) {
             futures.emplace_back(filter_pool->enqueue([&, block] {
-                tbuf[block] =
-                    filter_pool->get_global_buffer(block, length * nblocks * typesize + 512);
-                memcpy(tbuf[block], in_buf + header_size + offset[block], block_size[block]);
+                tbuf[block].reserve(block_size[block]);
+                std::copy_n(in_buf + header_size + offset[block], block_size[block],
+                            tbuf[block].begin());
             }));
         }
         // must wait for copies to complete, otherwise having
@@ -103,7 +100,7 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
                                  ((block < remainder) ? block * (lblocks + 1)
                                                       : (remainder * (lblocks + 1) +
                                                          (block - remainder) * lblocks)),
-                    typesize * length * own_blocks, tbuf[block], block_size[block], nullptr,
+                    typesize * length * own_blocks, tbuf[block].data(), block_size[block], nullptr,
                     err_msg);
                 if (ret != CharlsApiResultType::OK) {
                     fprintf(stderr, "JPEG-LS error %d: %s\n", ret, err_msg);
@@ -116,7 +113,6 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
 
         *buf_size = nblocks * length * typesize;
 
-        filter_pool->unlock_buffers();
         return *buf_size;
 
     } else {
