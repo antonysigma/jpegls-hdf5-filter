@@ -15,6 +15,8 @@
 #include <H5Zpublic.h>
 #include <hdf5.h>
 
+#include "jpegls-filter.h"
+
 #include "charls/charls.h"
 #include "threadpool.h"
 ThreadPool* filter_pool = nullptr;
@@ -53,12 +55,14 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
         return -1;
     }
 
-    const size_t subchunks = std::min(size_t(24), nblocks);
-    const size_t lblocks = nblocks / subchunks;
-    const size_t header_size = 4 * subchunks;
-    const size_t remainder = nblocks - lblocks * subchunks;
+    const jpegls::subchunk_config_t config(length, nblocks, typesize);
 
     if (flags & H5Z_FLAG_REVERSE) {
+        const size_t subchunks = config.subchunks;
+        const size_t lblocks = config.lblocks;
+        const size_t header_size = config.header_size;
+        const size_t remainder = config.remainder;
+
         char err_msg[256];
 
         filter_pool->lock_buffers();
@@ -120,73 +124,14 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
         return *buf_size;
 
     } else {
-        /* Output */
+        /* Compressing raw data into jpegls-encoding */
 
-        auto in_buf = reinterpret_cast<unsigned char*>(*buf);
+        jpegls::span<uint8_t> raw_data{reinterpret_cast<uint8_t*>(*buf), *buf_size};
+        const auto out_buf = jpegls::encode(raw_data, config);
+        *buf = out_buf.data;
+        *buf_size = out_buf.size;
 
-        std::vector<uint32_t> block_size(subchunks);
-        std::vector<std::vector<unsigned char>> local_out(subchunks);
-
-#pragma omp parallel for schedule(guided)
-        for (size_t block = 0; block < subchunks; block++) {
-            const size_t own_blocks = (block < remainder ? 1 : 0) + lblocks;
-            auto& local_buf = local_out[block];
-
-            const auto reserved_size = own_blocks * length * typesize;
-            local_buf.resize(reserved_size + 8192);
-
-            auto params = [&]() -> const JlsParameters {
-                auto params = JlsParameters();
-                params.width = length;
-                params.height = own_blocks;
-                params.bitsPerSample = typesize * 8;
-                params.components = 1;
-                return params;
-            }();
-
-            size_t csize;
-            char err_msg[256];
-            const CharlsApiResultType ret = JpegLsEncode(
-                local_buf.data(), local_buf.size(), &csize,
-                in_buf + typesize * length *
-                             ((block < remainder)
-                                  ? block * (lblocks + 1)
-                                  : (remainder * (lblocks + 1) + (block - remainder) * lblocks)),
-                reserved_size, &params, err_msg);
-            if (ret != CharlsApiResultType::OK) {
-                std::cerr << "JPEG-LS error: " << err_msg << '\n';
-            }
-            local_buf.resize(csize);
-        }
-
-        const auto compressed_size =
-            std::accumulate(local_out.begin(), local_out.end(), header_size,
-                            [](const auto& a, const auto& b) -> size_t { return a + b.size(); });
-
-        if (compressed_size > nbytes) {
-            in_buf = reinterpret_cast<unsigned char*>(realloc(*buf, compressed_size));
-            *buf = in_buf;
-        }
-
-        auto header = reinterpret_cast<uint32_t*>(in_buf);
-#pragma omp parallel for schedule(guided)
-        for (size_t block = 0; block < subchunks; block++) {
-            const auto offset = std::accumulate(
-                local_out.begin(), local_out.begin() + block, header_size,
-                [](const auto& a, const auto& b) -> size_t { return a + b.size(); });
-
-            const auto& local_buf = local_out[block];
-
-            // Write header
-            header[block] = local_buf.size();
-
-            // Write payload
-            std::copy(local_buf.begin(), local_buf.end(), in_buf + offset);
-        }
-
-        *buf_size = compressed_size;
-
-        return compressed_size;
+        return out_buf.size;
     }
 }
 
