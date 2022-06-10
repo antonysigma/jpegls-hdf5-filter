@@ -1,4 +1,4 @@
-project('highfive', 'cpp',
+project('highfive', 'cpp', 'c',
     version: 'v1.10.4-6',
 )
 
@@ -10,7 +10,7 @@ highfive_inc = include_directories('include')
 highfive_dep = declare_dependency(
     include_directories: highfive_inc,
     dependencies: [
-        dependency('hdf5-serial'),
+        dependency('hdf5', language: 'c'),
     ]
 )
 

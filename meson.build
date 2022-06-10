@@ -1,4 +1,4 @@
-project('jpegls-hdf-filter', 'cpp',
+project('jpegls-hdf-filter', 'cpp', 'c',
     version: '0.1',
     license: 'MIT',
     meson_version: '>=0.57',
@@ -14,14 +14,39 @@ charls_proj = subproject('charls',
 charls_lib = charls_proj.get_variable('charls_lib')
 charls_inc = charls_proj.get_variable('charls_inc')
 
-hdf5_dep = dependency('hdf5-serial')
+hdf5_dep = dependency('hdf5', language: 'c')
 threads_dep = dependency('threads')
 openmp_dep = dependency('openmp')
+taskflow_dep = subproject('taskflow').get_variable('taskflow_dep')
+
+jpegls_filter_dep = declare_dependency(
+    include_directories: [
+        '.',
+        charls_inc,
+    ],
+    sources: [
+        'jpegls-filter.cpp',
+    ],
+    link_with: [
+        charls_lib,
+    ],
+    dependencies: [
+        threads_dep,
+        openmp_dep,
+    ],
+)
+
+jpegls_filter_async_dep = declare_dependency(
+    compile_args: '-DH5JPEGLS_USE_ASYNC',
+    dependencies: [
+        jpegls_filter_dep,
+        taskflow_dep,
+    ],
+)
 
 h5jpegls_lib = library('h5jpegls',
     sources: [
         'h5jpegls.cpp',
-        'jpegls-filter.cpp',
     ],
     include_directories: [
         charls_inc,
@@ -30,13 +55,10 @@ h5jpegls_lib = library('h5jpegls',
         '-fvisibility=hidden',
         '-DNO_DEBUG',
     ],
-    link_with: [
-        charls_lib,
-    ],
     dependencies: [
+        jpegls_filter_dep,
         hdf5_dep,
         threads_dep,
-        openmp_dep,
     ],
 )
 
