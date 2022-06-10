@@ -1,6 +1,7 @@
 project('jpegls-hdf-filter', 'cpp',
     version: '0.1',
     license: 'MIT',
+    meson_version: '>=0.57',
     default_options : [
         'buildtype=debugoptimized',
         'b_ndebug=if-release',
@@ -20,6 +21,7 @@ openmp_dep = dependency('openmp')
 h5jpegls_lib = library('h5jpegls',
     sources: [
         'h5jpegls.cpp',
+        'jpegls-filter.cpp',
     ],
     include_directories: [
         charls_inc,
