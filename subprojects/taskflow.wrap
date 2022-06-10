@@ -1,0 +1,5 @@
+[wrap-git]
+url = https://github.com/taskflow/taskflow.git
+revision = 1376a36a26982cbcb4dfe5da399dd7771f0433a7
+
+patch_directory = taskflow

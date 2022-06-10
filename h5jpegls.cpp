@@ -130,7 +130,6 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
         /* Compressing raw data into jpegls-encoding */
 
         jpegls::span<uint8_t> raw_data{reinterpret_cast<uint8_t*>(*buf), *buf_size};
-
         const auto out_buf = jpegls::encode(raw_data, config);
         *buf = out_buf.data;
         *buf_size = out_buf.size;

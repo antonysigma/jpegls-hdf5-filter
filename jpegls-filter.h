@@ -1,6 +1,11 @@
 #pragma once
+#include <array>
 #include <cstdint>
 #include <vector>
+
+#ifdef H5JPEGLS_USE_ASYNC
+#include <taskflow/taskflow.hpp>
+#endif
 
 namespace jpegls {
 
@@ -61,6 +66,7 @@ struct subchunk_config_t {
           header_size(sizeof(uint32_t) * subchunks),
           remainder(nblocks - lblocks * subchunks) {}
 };
+
 /** Compress one chunk of data, defined by the HDF5 chunk shape.
  * @param[in] raw input data pointer and byte count.
  * @param[in] config sub-chunk data layout to compress in parallel.
@@ -69,4 +75,24 @@ struct subchunk_config_t {
 span<uint8_t>
 encode(span<uint8_t> buffer, const subchunk_config_t config);
 
-}
+#ifdef H5JPEGLS_USE_ASYNC
+
+using byte_array_t = std::vector<uint8_t>;
+
+struct encode_cache_t {
+    size_t compressed_size;
+    std::vector<uint32_t> block_size;
+    std::vector<byte_array_t> local_out;
+
+    encode_cache_t() = default;
+
+    encode_cache_t(size_t N) : block_size(N), local_out(N) {}
+};
+
+using encode_ctx_t = std::variant<encode_cache_t, byte_array_t>;
+
+/** Encode the chunk asychronously */
+std::array<tf::Task, 3> encodeAsync(span<const uint8_t> raw, const subchunk_config_t config,
+                                    tf::Taskflow& taskflow, encode_ctx_t& encoded);
+#endif
+}  // namespace jpegls

@@ -109,4 +109,83 @@ encode(span<uint8_t> raw, const subchunk_config_t c) {
 
     return out_buf;
 }
+
+#ifdef H5JPEGLS_USE_ASYNC
+std::array<tf::Task, 3>
+encodeAsync(span<const uint8_t> raw, const subchunk_config_t c, tf::Taskflow& taskflow,
+            encode_ctx_t& encoded) {
+    constexpr size_t zero = 0;
+    constexpr size_t one = 1;
+    const auto n_subchunks = c.subchunks;
+
+    auto allocate_task = taskflow.emplace([&, n_subchunks]() {
+        // Allocate buffers of the subchunks.
+        encoded = encode_cache_t{n_subchunks};
+    });
+
+    // For each sub-chunk of raw data, determine the byte range, image width and height.
+    // Then, compress data.
+    auto scatter_task =
+        taskflow.for_each_index(zero, n_subchunks, one, [&, c, raw](const size_t block) {
+            const size_t width = c.length;
+            const size_t height =
+                (c.remainder != 0 && block == c.subchunks) ? c.remainder : c.lblocks;
+            const size_t offset = c.typesize * width * height * block;
+            const image_buffer_t<const uint8_t> input{
+                raw.subspan(offset, width * height * c.typesize), c.typesize, width, height, 1};
+
+            auto& local_out = std::get<encode_cache_t>(encoded).local_out.at(block);
+            local_out = encodeSubchunk(input);
+        });
+
+    // Compute the total compressed size in bytes. We will shrink wrap the
+    // compressed subchunks into one contiguous data layout.
+    auto shrink_task = taskflow.emplace([&, c]() {
+        auto& compressed_size = std::get<encode_cache_t>(encoded).compressed_size;
+        const auto& local_out = std::get<encode_cache_t>(encoded).local_out;
+
+        compressed_size =
+            std::accumulate(local_out.begin(), local_out.end(), c.header_size,
+                            [](const auto& a, const auto& b) -> size_t { return a + b.size(); });
+    });
+
+    auto gather_task = taskflow.emplace([&, c]() {
+        const size_t compressed_size = std::get<encode_cache_t>(encoded).compressed_size;
+        const auto& local_out = std::get<encode_cache_t>(encoded).local_out;
+
+        byte_array_t encoded_buf(compressed_size);
+
+        span<uint32_t> header{reinterpret_cast<uint32_t*>(encoded_buf.data()), c.subchunks};
+
+        for (size_t block = 0; block < c.subchunks; block++) {
+            const auto offset = std::accumulate(
+                local_out.begin(), local_out.begin() + block, c.header_size,
+                [](const auto& a, const auto& b) -> size_t { return a + b.size(); });
+
+            const auto local_buf = std::move(local_out.at(block));
+
+            // Write header
+            header[block] = local_buf.size();
+
+            // Write payload
+            std::copy(local_buf.begin(), local_buf.end(), encoded_buf.begin() + offset);
+        }
+
+        // move the aggregated data to the output buffer
+        encoded = std::move(encoded_buf);
+    });
+
+    // Now, label the tasks for debugging purpose.
+    allocate_task.name("allocate");
+    scatter_task.name("compress");
+    shrink_task.name("shrink");
+    gather_task.name("gather");
+
+    // Schecule the tasks serially.
+    taskflow.linearize({allocate_task, scatter_task, shrink_task, gather_task});
+
+    // Return the tasks for a more fine grain task scheduling, e.g. concurrency limit.
+    return {allocate_task, scatter_task, gather_task};
 }
+#endif
+}  // namespace jpegls
