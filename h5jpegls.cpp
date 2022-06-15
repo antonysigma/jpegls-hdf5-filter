@@ -25,6 +25,8 @@ ThreadPool* filter_pool = nullptr;
 
 using std::vector;
 
+#define VISIBLE __attribute__ ((visibility ("default")))
+
 namespace {
 
 // Temporary unofficial filter ID
@@ -45,6 +47,7 @@ getParams(const size_t cd_nelmts, const unsigned int cd_values[]) {
 
 }  // namespace
 
+VISIBLE
 size_t
 codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[], size_t nbytes,
              size_t* buf_size, void** buf) {
@@ -136,6 +139,7 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
     }
 }
 
+VISIBLE
 herr_t h5jpegls_set_local(hid_t dcpl, hid_t type, hid_t) {  // NOLINT
     const auto [r, flags,
                 values] = [&]() -> std::tuple<herr_t, unsigned int, std::vector<unsigned int>> {
@@ -209,6 +213,7 @@ herr_t h5jpegls_set_local(hid_t dcpl, hid_t type, hid_t) {  // NOLINT
     return 1;
 }
 
+VISIBLE
 const H5Z_class2_t H5Z_JPEGLS[1] = {{
     H5Z_CLASS_T_VERS,                                      /* H5Z_class_t version */
     H5Z_FILTER_JPEGLS,                                     /* Filter id number */
@@ -220,9 +225,12 @@ const H5Z_class2_t H5Z_JPEGLS[1] = {{
     static_cast<H5Z_func_t>(codec_filter),                 /* The actual filter function */
 }};
 
+VISIBLE
 H5PL_type_t H5PLget_plugin_type() {  // NOLINT
     return H5PL_TYPE_FILTER;
 }
+
+VISIBLE
 const void* H5PLget_plugin_info() {  // NOLINT
     return H5Z_JPEGLS;
 }

@@ -27,6 +27,7 @@ h5jpegls_lib = library('h5jpegls',
         charls_inc,
     ],
     cpp_args: [
+        '-fvisibility=hidden',
         '-DNO_DEBUG',
     ],
     link_with: [
