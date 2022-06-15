@@ -66,7 +66,7 @@ struct subchunk_config_t {
  * @param[in] config sub-chunk data layout to compress in parallel.
  * @param[out] encoded encoded data.
  */
-int
+span<uint8_t>
 encode(span<uint8_t> buffer, const subchunk_config_t config);
 
 }

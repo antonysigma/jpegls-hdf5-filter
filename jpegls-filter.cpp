@@ -59,9 +59,8 @@ encodeSubchunk(const image_buffer_t<T> raw) {
 
 namespace jpegls {
 
-int
+span<uint8_t>
 encode(span<uint8_t> raw, const subchunk_config_t c) {
-    std::vector<uint32_t> block_size(c.subchunks);
     std::vector<byte_array_t> local_out(c.subchunks);
 
     // For each sub-chunk of raw data, determine the byte range, image width and height.
@@ -87,7 +86,7 @@ encode(span<uint8_t> raw, const subchunk_config_t c) {
     span<uint8_t> out_buf;
 
     if (compressed_size <= raw.size) {
-        out_buf = raw;
+        out_buf = {raw.data, compressed_size};
     } else {
         out_buf = {static_cast<uint8_t*>(realloc(raw.data, compressed_size)), compressed_size};
     }
@@ -97,18 +96,17 @@ encode(span<uint8_t> raw, const subchunk_config_t c) {
 #pragma omp parallel for schedule(guided)
     for (size_t block = 0; block < c.subchunks; block++) {
         const auto offset = std::accumulate(
-            local_out.begin(), local_out.begin() + block, c.header_size,
+            local_out.begin(), local_out.begin() + block, size_t(c.header_size),
             [](const auto& a, const auto& b) -> size_t { return a + b.size(); });
 
         const auto& local_buf = local_out[block];
-
         // Write header
         header[block] = local_buf.size();
 
         // Write payload
-        std::copy(local_buf.begin(), local_buf.end(), raw.begin() + offset);
+        std::copy(local_buf.begin(), local_buf.end(), out_buf.begin() + offset);
     }
 
-    return compressed_size;
+    return out_buf;
 }
 }
