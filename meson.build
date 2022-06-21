@@ -95,3 +95,5 @@ test('JPEG-LS decoding w/ h5repack',
         restored_data,
     ],
 )
+
+subdir('examples')
