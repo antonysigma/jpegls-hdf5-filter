@@ -119,3 +119,4 @@ test('JPEG-LS decoding w/ h5repack',
 )
 
 subdir('examples')
+subdir('tests')
