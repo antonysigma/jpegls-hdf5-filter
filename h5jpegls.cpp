@@ -90,7 +90,9 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
         // Make a copy of the compressed buffer. Required because we
         // now realloc in_buf.
         for (size_t block = 0; block < subchunks; block++) {
-            futures.emplace_back(filter_pool->enqueue([&, block] {
+            futures.emplace_back(filter_pool->enqueue([&, block, config] {
+                const auto [length, typesize, nblocks, subchunks, lblocks, header_size, remainder] =
+                    config;
                 tbuf[block] =
                     filter_pool->get_global_buffer(block, length * nblocks * typesize + 512);
                 memcpy(tbuf[block], in_buf + header_size + offset[block], block_size[block]);
@@ -103,7 +105,9 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
         }
 
         for (size_t block = 0; block < subchunks; block++) {
-            futures.emplace_back(filter_pool->enqueue([&, block] {
+            futures.emplace_back(filter_pool->enqueue([&, block, config] {
+                const auto [length, typesize, nblocks, subchunks, lblocks, header_size, remainder] =
+                    config;
                 size_t own_blocks = (block < remainder ? 1 : 0) + lblocks;
                 CharlsApiResultType ret = JpegLsDecode(
                     in_buf + typesize * length *
