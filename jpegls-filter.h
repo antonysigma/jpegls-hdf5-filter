@@ -53,6 +53,7 @@ struct span {
 struct subchunk_config_t {
     size_t length = 1;
     size_t typesize = 1;
+    size_t nblocks = 1;
     size_t subchunks = 1;
     size_t lblocks = 1;
     size_t header_size = sizeof(uint32_t);
@@ -61,6 +62,7 @@ struct subchunk_config_t {
     constexpr subchunk_config_t(int l, size_t nblocks, size_t t)
         : length(l),
           typesize(t),
+          nblocks(nblocks),
           subchunks(std::min(size_t(24), nblocks)),
           lblocks(nblocks / subchunks),
           header_size(sizeof(uint32_t) * subchunks),
