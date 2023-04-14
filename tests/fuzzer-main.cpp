@@ -19,7 +19,7 @@ class Jpegls {
     explicit Jpegls() = default;
 
    private:
-    const std::array<uint32_t, 3> filter_param{0, 0, 0};
+    static constexpr std::array<uint32_t, 3> filter_param{0, 0, 0};
     friend HighFive::DataSetCreateProps;
     friend HighFive::GroupCreateProps;
 
@@ -34,33 +34,52 @@ class Jpegls {
     }
 };
 
+#pragma pack(1)
+struct chunk_shape_t {
+    uint8_t image_height;
+    uint8_t image_width;
+    uint8_t chunk_height;
+    uint8_t chunk_width;
+};
+#pragma pack(pop)
+
 }  // namespace
 
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-    if (size == 0) return 0;
+    if (size != sizeof(chunk_shape_t)) return 0;
+
+    // Parse parameters
+    const auto [h, w, ch, cw] = *reinterpret_cast<const chunk_shape_t *>(data);
+
+    const uint32_t height = 32u * h + 32;
+    const uint32_t width = 32u * w + 32;
+    const uint32_t chunk_height = 4u * ch + 4;
+    const uint32_t chunk_width = 4u * cw + 4;
+
+    //std::cout << '(' << int(height) << ',' << int(width) << ") (" << int(chunk_height) << ','
+    //          << int(chunk_width) << ")\n";
+
+    if (height < chunk_height || width < chunk_width) return 0;
 
     // Open a file
     File file("/dev/shm/sync-write.h5", File::Overwrite);
 
     // Create DataSet
-    constexpr int height = 1;
-    const auto width = size;
-    constexpr int chunk_height = 1;
-
     auto props = DataSetCreateProps::Default();
-    props.add(Chunking{chunk_height, width});
+    props.add(Chunking{chunk_height, chunk_width});
     props.add(Jpegls{});
 
     // Compress and write data
     auto dset = file.createDataSet<uint8_t>("/dset1", DataSpace{height, width}, props);
-    dset.write_raw(data);
+    const std::vector<uint8_t> ones(height * width, 1);
+    dset.write_raw(ones.data());
 
     // Read and decompress data
     std::vector<uint8_t> decoded(height * width);
-    dset.read((uint8_t**) decoded.data());
+    dset.read(decoded.data());
 
-    const bool is_equal = std::equal(decoded.begin(), decoded.end(), data);
+    const bool is_equal = std::equal(decoded.begin(), decoded.end(), ones.begin());
 
     return (is_equal ? 0 : -1);  // Values other than 0 and -1 are reserved for future use.
 }

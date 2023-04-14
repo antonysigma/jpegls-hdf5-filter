@@ -12,7 +12,7 @@ test('Monkey test',
     fuzzer_exe,
     args: [
         '-max_total_time=10',
-        '-max_len=1024',
+        '-max_len=4',
     ],
     env: {
         'HDF5_PLUGIN_PATH': meson.current_build_dir() / '..',
