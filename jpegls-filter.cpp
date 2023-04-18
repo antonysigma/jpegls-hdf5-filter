@@ -68,8 +68,19 @@ encode(span<uint8_t> raw, const subchunk_config_t c) {
 #pragma omp parallel for schedule(guided)
     for (size_t block = 0; block < c.subchunks; block++) {
         const size_t width = c.length;
-        const size_t height = (c.remainder != 0 && block == c.subchunks) ? c.remainder : c.lblocks;
-        const size_t offset = c.typesize * width * height * block;
+
+        // Let's say chunk height is 27, not divisible by 24. We have the
+        // remainder of 3. We distribute the remainder by adding additional
+        // single row to the first 3 subchunks.
+        const size_t padded_height = c.lblocks + 1;
+        const size_t height = (block < c.remainder) ? padded_height : c.lblocks;
+
+        // Now, for the first 3 subchunks, the offset is computed by padded
+        // heights and the block id. The rest has an additional offsets.
+        const size_t offset =
+            c.typesize * width *
+            ((block < c.remainder) ? height * block
+                                   : (padded_height * c.remainder + height * (block - c.remainder)));
 
         const image_buffer_t<const uint8_t> input{raw.subspan(offset, width * height * c.typesize),
                                                   c.typesize, width, height, 1};
