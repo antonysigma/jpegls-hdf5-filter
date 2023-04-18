@@ -52,17 +52,19 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     // Parse parameters
     const auto [h, w, ch, cw] = *reinterpret_cast<const chunk_shape_t *>(data);
 
-    const uint32_t height = 32u * h + 32;
-    const uint32_t width = 32u * w + 32;
-    const uint32_t chunk_height = 4u * ch + 4;
-    const uint32_t chunk_width = 4u * cw + 4;
+    const uint32_t height = 4u * h + 32;
+    const uint32_t width = 4u * w + 32;
+    const uint32_t chunk_height = 4u * ch + 8;
+    const uint32_t chunk_width = 4u * cw + 8;
 
-    //std::cout << '(' << int(height) << ',' << int(width) << ") (" << int(chunk_height) << ','
-    //          << int(chunk_width) << ")\n";
+    if (height < chunk_height || width < chunk_width || chunk_width * chunk_height <= 25) return 0;
 
-    if (height < chunk_height || width < chunk_width) return 0;
+    std::cout << '(' << int(height) << ',' << int(width) << ") (" << int(chunk_height) << ','
+             << int(chunk_width) << ")\n";
+
 
     // Open a file
+    // TODO(Antony): need this to be thread-safe.
     File file("/dev/shm/sync-write.h5", File::Overwrite);
 
     // Create DataSet
@@ -79,7 +81,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     std::vector<uint8_t> decoded(height * width);
     dset.read(decoded.data());
 
-    const bool is_equal = std::equal(decoded.begin(), decoded.end(), ones.begin());
+    const bool is_equal = std::all_of(decoded.begin(), decoded.end(), [](const auto& x){ return x == 1;});
 
     return (is_equal ? 0 : -1);  // Values other than 0 and -1 are reserved for future use.
 }
