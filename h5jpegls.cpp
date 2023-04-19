@@ -32,17 +32,20 @@ namespace {
 // Temporary unofficial filter ID
 const H5Z_filter_t H5Z_FILTER_JPEGLS = 32012;
 
-std::tuple<int, size_t, int>
+constexpr int INVALID = -1;
+
+jpegls::subchunk_config_t
 getParams(const size_t cd_nelmts, const unsigned int cd_values[]) {
     if (cd_nelmts <= 3 || cd_values[0] == 0) {
-        return {-1, 0, 0};
+        return {INVALID, 0, 0, 0};
     }
 
     int length = cd_values[0];
     size_t nblocks = cd_values[1];
     int typesize = cd_values[2];
+    int lossy = cd_values[3];
 
-    return {length, nblocks, typesize};
+    return {length, nblocks, typesize, lossy};
 }
 
 }  // namespace
@@ -51,20 +54,16 @@ VISIBLE
 size_t
 codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[], size_t nbytes,
              size_t* buf_size, void** buf) {
-    const auto [length, nblocks, typesize] = getParams(cd_nelmts, cd_values);
+    const auto config = getParams(cd_nelmts, cd_values);
 
-    if (length == -1) {
+    if (config.length == INVALID) {
         std::cerr << "Error: Incorrect number of filter parameters specified. Aborting.\n";
         return -1;
     }
 
-    const jpegls::subchunk_config_t config(length, nblocks, typesize);
-
     if (flags & H5Z_FLAG_REVERSE) {
-        const size_t subchunks = config.subchunks;
-        const size_t lblocks = config.lblocks;
-        const size_t header_size = config.header_size;
-        const size_t remainder = config.remainder;
+        const auto [length, typesize, nblocks, subchunks, lblocks, header_size, remainder, lossy] =
+            config;
 
         char err_msg[256];
 
@@ -91,7 +90,7 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
         // now realloc in_buf.
         for (size_t block = 0; block < subchunks; block++) {
             futures.emplace_back(filter_pool->enqueue([&, block, config] {
-                const auto [length, typesize, nblocks, subchunks, lblocks, header_size, remainder] =
+                const auto [length, typesize, nblocks, subchunks, lblocks, header_size, remainder, _] =
                     config;
                 tbuf[block] =
                     filter_pool->get_global_buffer(block, length * nblocks * typesize + 512);
@@ -106,7 +105,7 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
 
         for (size_t block = 0; block < subchunks; block++) {
             futures.emplace_back(filter_pool->enqueue([&, block, config] {
-                const auto [length, typesize, nblocks, subchunks, lblocks, header_size, remainder] =
+                const auto [length, typesize, nblocks, subchunks, lblocks, header_size, remainder, _] =
                     config;
                 size_t own_blocks = (block < remainder ? 1 : 0) + lblocks;
                 CharlsApiResultType ret = JpegLsDecode(
@@ -117,7 +116,7 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
                     typesize * length * own_blocks, tbuf[block], block_size[block], nullptr,
                     err_msg);
                 if (ret != CharlsApiResultType::OK) {
-                    fprintf(stderr, "JPEG-LS error %d: %s\n", ret, err_msg);
+                    fprintf(stderr, "JPEG-LS error %d: %s\n", static_cast<int>(ret), err_msg);
                 }
             }));
         }

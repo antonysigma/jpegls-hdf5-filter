@@ -27,7 +27,7 @@ struct image_buffer_t {
 /** Given one subchunk of data, compress it and return the encoded data. */
 template <typename T>
 byte_array_t
-encodeSubchunk(const image_buffer_t<T> raw) {
+encodeSubchunk(const image_buffer_t<T> raw, uint32_t lossy = 0) {
     const auto reserved_size = raw.buffer.size_bytes();
     byte_array_t encoded(reserved_size + 8192);
 
@@ -37,6 +37,7 @@ encodeSubchunk(const image_buffer_t<T> raw) {
         params.height = raw.height;
         params.bitsPerSample = raw.typesize * 8;
         params.components = raw.channels;
+        params.allowedLossyError = lossy;
         return params;
     }();
 
@@ -54,7 +55,6 @@ encodeSubchunk(const image_buffer_t<T> raw) {
 
     return encoded;
 }
-
 }
 
 namespace jpegls {
@@ -85,7 +85,7 @@ encode(span<uint8_t> raw, const subchunk_config_t c) {
         const image_buffer_t<const uint8_t> input{raw.subspan(offset, width * height * c.typesize),
                                                   c.typesize, width, height, 1};
 
-        local_out[block] = encodeSubchunk(input);
+        local_out[block] = encodeSubchunk(input, c.lossy);
     }
 
     // Compute the total compressed size in bytes.
@@ -146,7 +146,7 @@ encodeAsync(span<const uint8_t> raw, const subchunk_config_t c, tf::Taskflow& ta
                 raw.subspan(offset, width * height * c.typesize), c.typesize, width, height, 1};
 
             auto& local_out = std::get<encode_cache_t>(encoded).local_out.at(block);
-            local_out = encodeSubchunk(input);
+            local_out = encodeSubchunk(input, c.lossy);
         });
 
     // Compute the total compressed size in bytes. We will shrink wrap the

@@ -58,15 +58,17 @@ struct subchunk_config_t {
     size_t lblocks = 1;
     size_t header_size = sizeof(uint32_t);
     size_t remainder = 0;
+    size_t lossy = 0;
 
-    constexpr subchunk_config_t(int l, size_t nblocks, size_t t)
+    constexpr subchunk_config_t(int l, size_t _nblocks, size_t t, int _lossy = 0)
         : length(l),
           typesize(t),
-          nblocks(nblocks),
+          nblocks(_nblocks),
           subchunks(std::min(size_t(24), nblocks)),
           lblocks(nblocks / subchunks),
           header_size(sizeof(uint32_t) * subchunks),
-          remainder(nblocks - lblocks * subchunks) {}
+          remainder(nblocks - lblocks * subchunks),
+          lossy(_lossy) {}
 };
 
 /** Compress one chunk of data, defined by the HDF5 chunk shape.
