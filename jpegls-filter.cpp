@@ -1,9 +1,9 @@
 #include "jpegls-filter.h"
 
-#include <numeric>
 #include <iostream>
+#include <numeric>
 
-#include "charls/charls.h"
+#include "charls/charls_jpegls_encoder.h"
 
 using byte_array_t = std::vector<uint8_t>;
 
@@ -13,47 +13,38 @@ template <typename T>
 struct image_buffer_t {
     jpegls::span<T> buffer;
 
-    size_t typesize = 1;
+    int32_t typesize = 1;
     /** Pixel width. */
-    size_t width = 0;
+    uint32_t width = 0;
 
     /** Image height, i.e. number of pixel width. */
-    size_t height = 0;
+    uint32_t height = 0;
 
     /** Number of interleaved samples in a pixel. */
-    uint32_t channels = 1;
+    int32_t channels = 1;
 };
 
 /** Given one subchunk of data, compress it and return the encoded data. */
 template <typename T>
 byte_array_t
 encodeSubchunk(const image_buffer_t<T> raw, uint32_t lossy = 0) {
-    const auto reserved_size = raw.buffer.size_bytes();
-    byte_array_t encoded(reserved_size + 8192);
+    try {
+        charls::jpegls_encoder encoder;
+        encoder.frame_info({raw.width, raw.height,
+                            static_cast<int32_t>(raw.typesize * sizeof(uint8_t)), raw.channels});
+        encoder.near_lossless(lossy);
 
-    auto params = [&]() -> const JlsParameters {
-        auto params = JlsParameters();
-        params.width = raw.width;
-        params.height = raw.height;
-        params.bitsPerSample = raw.typesize * 8;
-        params.components = raw.channels;
-        params.allowedLossyError = lossy;
-        return params;
-    }();
+        byte_array_t encoded(encoder.estimated_destination_size());
+        encoder.destination(encoded);
 
-    size_t csize;
-    char err_msg[256];
-    const CharlsApiResultType ret = JpegLsEncode(
-        encoded.data(), encoded.size(), &csize,
-        raw.buffer.begin(),
-        raw.buffer.size_bytes(), &params, err_msg);
-    if (ret != CharlsApiResultType::OK) {
-        std::cerr << "JPEG-LS error: " << err_msg << '\n';
+        const size_t bytes_written = encoder.encode(raw.buffer.data, raw.buffer.size_bytes());
+        encoded.resize(bytes_written);
+
+        return encoded;
+    } catch (const charls::jpegls_error& e) {
+        std::cerr << "Charls encoder error[" << e.code() << "]: " << e.what() << '\n';
+        std::abort();
     }
-
-    encoded.resize(csize);
-
-    return encoded;
 }
 }
 
@@ -82,8 +73,9 @@ encode(span<uint8_t> raw, const subchunk_config_t c) {
             ((block < c.remainder) ? height * block
                                    : (padded_height * c.remainder + height * (block - c.remainder)));
 
-        const image_buffer_t<const uint8_t> input{raw.subspan(offset, width * height * c.typesize),
-                                                  c.typesize, width, height, 1};
+        const image_buffer_t<const uint8_t> input{
+            raw.subspan(offset, width * height * c.typesize), static_cast<int32_t>(c.typesize),
+            static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
 
         local_out[block] = encodeSubchunk(input, c.lossy);
     }
@@ -138,8 +130,8 @@ encodeAsync(span<const uint8_t> raw, const subchunk_config_t c, tf::Taskflow& ta
     // Then, compress data.
     auto scatter_task =
         taskflow.for_each_index(zero, n_subchunks, one, [&, c, raw](const size_t block) {
-            const size_t width = c.length;
-            const size_t height =
+            const uint32_t width = c.length;
+            const uint32_t height =
                 (c.remainder != 0 && block == c.subchunks) ? c.remainder : c.lblocks;
             const size_t offset = c.typesize * width * height * block;
             const image_buffer_t<const uint8_t> input{
