@@ -52,7 +52,7 @@ struct span {
 
 struct subchunk_config_t {
     size_t length = 1;
-    size_t typesize = 1;
+    int32_t typesize = 1;
     size_t nblocks = 1;
     size_t subchunks = 1;
     size_t lblocks = 1;
@@ -60,7 +60,7 @@ struct subchunk_config_t {
     size_t remainder = 0;
     size_t lossy = 0;
 
-    constexpr subchunk_config_t(int l, size_t _nblocks, size_t t, int _lossy = 0)
+    constexpr subchunk_config_t(int l, size_t _nblocks, int32_t t, int _lossy = 0)
         : length(l),
           typesize(t),
           nblocks(_nblocks),
