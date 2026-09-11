@@ -52,9 +52,9 @@ h5jpegls_lib = library('h5jpegls',
         charls_inc,
     ],
     cpp_args: [
-        '-fvisibility=hidden',
         '-DNO_DEBUG',
     ],
+    gnu_symbol_visibility: 'hidden',
     dependencies: [
         jpegls_filter_dep,
         hdf5_dep,

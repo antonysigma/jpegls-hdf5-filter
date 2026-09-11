@@ -196,7 +196,9 @@ herr_t h5jpegls_set_local(hid_t dcpl, hid_t type, hid_t) {  // NOLINT
             length *= typesize;
         }
 
-        return {length, nblocks, typesize};
+        const int lossy = (values.size() >= 4) ? values[3] : 0;
+
+        return {length, nblocks, typesize, lossy};
     }();
 
     if (cb_values[0] == minus_one) {
