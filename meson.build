@@ -76,7 +76,7 @@ compressed_data = custom_target('compressed.hdf5',
     },
     command: [
         h5repack_exe,
-        '-f', 'ones:UD=32012,3,0,0,0',
+        '-f', 'ones:UD=32012,0,3,0,0,0',
         '@INPUT0@',
         '@OUTPUT@',
     ],

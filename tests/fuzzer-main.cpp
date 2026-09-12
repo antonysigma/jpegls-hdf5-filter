@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <vector>
 
 using std::size_t;
 
@@ -38,14 +39,15 @@ class Jpegls {
 
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-    if (size == 0) return 0;
+    const size_t pixel_count = size / sizeof(uint16_t);
+    if (pixel_count == 0) return 0;
 
     // Open a file
     File file("/dev/shm/sync-write.h5", File::Overwrite);
 
     // Create DataSet
     constexpr int height = 1;
-    const auto width = size;
+    const auto width = pixel_count;
     constexpr int chunk_height = 1;
 
     auto props = DataSetCreateProps::Default();
@@ -53,12 +55,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     props.add(Jpegls{});
 
     // Compress and write data
-    auto dset = file.createDataSet<uint8_t>("/dset1", DataSpace{height, width}, props);
-    dset.write_raw(data);
+    auto dset = file.createDataSet<uint16_t>("/dset1", DataSpace{height, width}, props);
+    dset.write_raw(reinterpret_cast<const uint16_t*>(data));
 
     // Read and decompress data
-    std::vector<uint8_t> decoded(height * width);
-    dset.read((uint8_t**) decoded.data());
+    std::vector<uint16_t> decoded(height * width);
+    dset.read(decoded);
 
     const bool is_equal = std::equal(decoded.begin(), decoded.end(), data);
 
