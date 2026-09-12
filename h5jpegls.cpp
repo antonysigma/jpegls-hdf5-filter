@@ -33,17 +33,19 @@ namespace {
 const H5Z_filter_t H5Z_FILTER_JPEGLS = 32012;
 
 constexpr int INVALID = -1;
+constexpr unsigned int MAX_LOSSY_ERROR = 65535;
 
 jpegls::subchunk_config_t
 getParams(const size_t cd_nelmts, const unsigned int cd_values[]) {
-    if (cd_nelmts <= 3 || cd_values[0] == 0) {
+    if (cd_nelmts <= 3 || cd_values[0] == 0 || cd_values[1] == 0 || cd_values[2] == 0 ||
+        cd_values[3] > MAX_LOSSY_ERROR) {
         return {INVALID, 0, 0, 0};
     }
 
     int length = cd_values[0];
     size_t nblocks = cd_values[1];
-    int typesize = cd_values[2];
-    int lossy = cd_values[3];
+    size_t typesize = cd_values[2];
+    int lossy = static_cast<int>(cd_values[3]);
 
     return {length, nblocks, typesize, lossy};
 }
@@ -56,9 +58,9 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
              size_t* buf_size, void** buf) {
     const auto config = getParams(cd_nelmts, cd_values);
 
-    if (config.length == INVALID) {
-        std::cerr << "Error: Incorrect number of filter parameters specified. Aborting.\n";
-        return -1;
+    if (config.length == static_cast<size_t>(INVALID)) {
+        std::cerr << "Error: Invalid filter parameters specified. Aborting.\n";
+        return 0;
     }
 
     if (flags & H5Z_FLAG_REVERSE) {
@@ -132,7 +134,7 @@ codec_filter(unsigned int flags, size_t cd_nelmts, const unsigned int cd_values[
     } else {
         /* Compressing raw data into jpegls-encoding */
 
-        jpegls::span<uint8_t> raw_data{reinterpret_cast<uint8_t*>(*buf), *buf_size};
+        jpegls::span<uint8_t> raw_data{reinterpret_cast<uint8_t*>(*buf), nbytes};
         const auto out_buf = jpegls::encode(raw_data, config);
         *buf = out_buf.data;
         *buf_size = out_buf.size;
